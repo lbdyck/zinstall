@@ -1,6 +1,6 @@
 #ZGSTAT and zinstall.rex - ZIGI Utilities for the non-ZIGI site
 
-zinstall.rex is a generic installation utility for ZIGI managed
+**zinstall.rex** is a generic installation utility for ZIGI managed
 repositories that are cloned to a site that does not have ZIGI
 installed.  To use zinstall.rex, which should be installed in the base
 directory of the Git repository, issue the command ./zinstall.rex from
@@ -27,6 +27,6 @@ These datasets, if partitioned, will not have any ISPF statistics at
 this time as neither Git, or OMVS, understand ISPF statistics. ZIGI
 however does, and has retained those statistics in special files.
 
-Once under TSO and ISPF execute the ZGSTAT command which will prompt
+Once under TSO and ISPF execute the **ZGSTAT** command which will prompt
 for the HLQ and the OMVS directory. It will then restore the ISPF
 statistics to the partitioned datasets.
