@@ -1,4 +1,4 @@
-#ZGSTAT and zinstall.rex - ZIGI Utilities for the non-ZIGI site
+# ZGSTAT and zinstall.rex - ZIGI Utilities for the non-ZIGI site
 
 **zinstall.rex** is a generic installation utility for ZIGI managed
 repositories that are cloned to a site that does not have ZIGI
