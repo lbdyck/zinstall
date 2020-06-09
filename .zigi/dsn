@@ -21,4 +21,5 @@
 #   
 # Default DSORG and DCB info 
 * PO FB 80 32720 
+*ZGSTAT.EXEC PO FB 80 32720 rex
 ZGSTAT.EXEC PO FB 80 32720 rex

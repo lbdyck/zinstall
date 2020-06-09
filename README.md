@@ -2,7 +2,17 @@
 
 **zinstall.rex** is a generic installation utility for ZIGI managed
 repositories that are cloned to a site that does not have ZIGI
-installed.  To use zinstall.rex, which should be installed in the base
+installed.
+
+## Suggested Use
+
+It is suggested that the zinstall.rex and the ZGSTAT.EXEC to included in
+all ZIGI managed distributions as a way to allow non-ZIGI sites to
+install the package.
+
+## Usage
+
+To use zinstall.rex, which should be installed in the base
 directory of the Git repository, issue the command ./zinstall.rex from
 the OMVS command prompt while in the Git repository directory.
 
