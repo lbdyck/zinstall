@@ -59,9 +59,9 @@
   'readdir' repodir 'files.'
 
   if files.0 = 0 then do
-    say ' '
-    say 'The directory specified is not the correct directory.'
-    say 'Try again.'
+    zedsmsg = 'Error'
+    zedlmsg = 'The directory specified is not the correct directory.'
+    'setmsg msg(isrz001)'
     exit 8
   end
 
@@ -73,6 +73,8 @@
       'abcdefghijklmnopqrstuvwxyz')
     if pos('?',fx) > 0 then iterate
     dsname = "'"hlq"."file"'"
+    x = listdsi(dsname)
+    if sysdsorg /= 'PO' then iterate
     msg1 = 'Applying ISPF Statistics to:'
     msg2 = dsname
     'Control Display Lock'
@@ -84,6 +86,9 @@
 
 Done:
   x = dropispf(load_info)
+  zedsmsg = 'Completed.'
+  zedlmsg = 'ZGSTAT completed ISPF statistics updates.'
+  'setmsg msg(isrz001)'
   exit 0
 
 Cancel:
