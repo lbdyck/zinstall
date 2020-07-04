@@ -4,7 +4,16 @@
   |                                                            |
   | Function:  ZIGI Package Installation Script                |
   |                                                            |
-  | Syntax:    ./zginstall.rex                                 |
+  | Syntax:    ./zginstall.rex hlq \ option                    |
+  |                                                            |
+  | Usage:     If hlq is not provided it will be prompted for  |
+  |            and used for the z/OS dataset hlq.              |
+  |                                                            |
+  |            \  - delimeter                                  |
+  |                                                            |
+  |            x - any non-blank will cause zginstall to       |
+  |                copy individual files into the PDS instead  |
+  |                of all at once..                            |
   |                                                            |
   | Installation: This script should be installed in the root  |
   |               OMVS directory for the ZIGI managed Git      |
@@ -32,6 +41,12 @@
   | Author:    Lionel B. Dyck                                  |
   |                                                            |
   | History:  (most recent on top)                             |
+  |            07/04/20 LBD - Use Clear to clear screen        |
+  |            06/29/20 LBD - Add generic installer prose      |
+  |            06/28/20 LBD - Add text graphics                |
+  |            06/27/20 LBD - Use a single cp if the pds is    |
+  |                           not mixed (text & binary)        |
+  |            06/26/20 LBD - Fixup zgstat.exec dsname quotes  |
   |            06/11/20 LBD - Redesign self contained exec     |
   |            06/10/20 LBD - Tweak for zgstat.exec dsn        |
   |            06/09/20 LBD - Creation from zigickot           |
@@ -56,9 +71,38 @@
   |    <https://www.gnu.org/licenses/>.                        |
   * ---------------------------------------------------------- */
 
-/* ------------------- *
- | Prompt for z/OS HLQ |
- * ------------------- */
+  arg options
+
+  parse value options with ckothlq'/'opt
+
+  ckothlq = strip(ckothlq)
+
+x = bpxwunix('clear')
+say copies('-',73)
+say "                                         .zZ.     Zz "
+say "                    ZZZZZZZZ           ZZZZZZZ "
+say "        ZZZZZZZZZZZZZZZZZZZZZZ   ZZ   ZZZ         zZ "
+say " ZZZZZZZZZZZZZZZZZZZZZZZZZZZZ        ZZZ    .zZZ   ZZ "
+say " ZZZZZZZZZZZZZZZZ      ZZZZZZZ   ZZ   ZZZ  ..zZZZ  Zz "
+say " ZZZZZZZZZZ,         ZZZZZZZZZ   ZZZ  ZzZ      ZZ  ZZ         ZZZZZZZ"
+say " ZZZZ               ZZZZZZZZ     ZZZ   ZZZZZZZZZZZ      ZZZZZZZZZZZ "
+say "                  ZZZZZZZZ       ZZZZ    ZZZZZZ      ZZZZZZZZZg "
+say "                 ZZZZZZZZ        ZZZ            ZZZZZZZZZ "
+say "                ZZZZZZZ              zZZZZZZZZZZZZZZ       Common"
+say "              ZZZZZZZ           ZZZZZZZZZZZZZZ               Installation"
+say "            .ZZZZZZZ      ZZZZZZZZZZZZZZ                       Tool"
+say "           ZZZZZZZZZZZZZZZZZZZZZZ "
+say "           ZZZZZZZZZZZZZZZZZ             zOS ISPF Git Interface "
+say "          ZZZZZZZZZZZZ "
+say "         ZZZZZZZZZg               The git interface for the rest of us"
+say "        ZZZZZZig "
+say "       ZZZZZZi                         Henri Kuiper & Lionel Dyck "
+say copies('-',73)
+
+  /* ------------------- *
+  | Prompt for z/OS HLQ |
+  * ------------------- */
+  if ckothlq = '' then do
   say 'Enter the z/OS High Level Qualifier to use:'
   pull ckothlq
   if ckothlq = '' then do
@@ -66,12 +110,17 @@
     exit 8
   end
   ckothlq = translate(ckothlq)
+  end
 
-/* --------------------- *
- | Get current directory |
- * --------------------- */
+  /* --------------------- *
+  | Set Default Env and   |
+  | Get current directory |
+  * --------------------- */
+  env.1 = '_BPX_SHAREAS=YES'
+  env.2 = '_BPX_SPAWN_SCRIPT=YES'
+  env.0 = 2
   cmd = 'pwd'
-  x = bpxwunix(cmd,,so.,se.)
+  x = bpxwunix(cmd,,so.,se.,env.)
   ckotdir = strip(so.1)
 
   /* -------------------------------------------------------- *
@@ -79,7 +128,7 @@
   | files in the current directory and sub-directories.      |
   * -------------------------------------------------------- */
   cmd = 'ls -laRk' ckotdir
-  rc = bpxwunix(cmd,,stdout.,stderr.)
+  rc = bpxwunix(cmd,,stdout.,stderr.,env.)
 
   /* ---------------------------------------------- *
   | Display any error messages and if so then exit |
@@ -99,11 +148,31 @@
   hit = 0
   filec = 0
 
+/* -------------------------------------------------------------- *
+ | Inform the user that if there are directories with a lot of    |
+ | members to be copied into a PDS tht the OMVS shell may enter   |
+ | an INPUT state and to just press F10 - meanwhile the copy (cp) |
+ | is proceeding.                                                 |
+ * -------------------------------------------------------------- */
+ if opt = null then do
+    call zmsg ' '
+    call zmsg 'If the repository being installed has partitioned datasets'
+    call zmsg 'with a large number of members, the copy operation will take'
+    call zmsg 'longer than the TN3270 polling expects. This will cause'
+    call zmsg 'the OMVS Shell to change from RUNNING to INPUT.'
+    call zmsg 'Just press the F10 key to return to a RUNNING state. '
+    call zmsg ' '
+    call zmsg 'Do not worry, however, as the copy operation is still running'
+    call zmsg 'and will report out when it completes (but only if the shell'
+    call zmsg 'is in a RUNNING state.'
+    call zmsg ' '
+    end
+
   /* ------------------------------------ *
   | Read in ../.zigi/dsn to get dcb info |
   * ------------------------------------ */
   cmd = 'cd' ckotdir '&& ls -la .zigi'
-  x = bpxwunix(cmd,,co.,ce.)
+  x = bpxwunix(cmd,,co.,ce.,env.)
   if x > 0 then do
     def_recfm = 'FB'
     def_lrecl = 80
@@ -191,7 +260,7 @@
     else type = 'Text'
     say 'Copying' odir 'to' fileg 'as' type
     filec = filec + 1
-    zfile.filec = fileg type
+    zfile.filec = fileg
     x = check_file(fileg)
     if x = 0 then do
       call outtrap 'x.'
@@ -224,59 +293,61 @@
     call alloc_copy_pds
   end
 
-/* ------------------------------------------ *
- | Now update and create the zgstat.exec file |
- * ------------------------------------------ */
- c = 0
- hit = 0
- last = sourceline()
- do i = 1 to last
+  /* ------------------------------------------ *
+  | Now update and create the zgstat.exec file |
+  * ------------------------------------------ */
+  c = 0
+  hit = 0
+  last = sourceline()
+  do i = 1 to last
     card = sourceline(i)
     if  left(card,8) = '>ZGSTATE' then leave
     if hit = 0 then
     if  left(card,8) = '>ZGSTAT ' then do
-    hit = 1
-    iterate
+      hit = 1
+      iterate
     end
     else iterate
     if pos('$$$$$$',card) > 0 then do
-       parse value card with var '=' .
-       if translate(var) = 'REPODIR' then
-          card = "   repodir ='"ckotdir"'"
-       if translate(var) = 'HLQ' then
-          card = "   hlq ='"ckothlq"'"
-       end
+      parse value card with var '=' .
+      if translate(var) = 'REPODIR' then
+      card = "   repodir ='"ckotdir"'"
+      if translate(var) = 'HLQ' then
+      card = "   hlq ='"ckothlq"'"
+    end
     c = c + 1
     zg.c = card
-    end
- zg.0 = c
+  end
+  zg.0 = c
 
- Address syscall
- path = ckotdir'/lrhg.rex'
- 'open' path O_rdwr+O_creat+O_trunc 660
- if retval = -1 then do
+  Address syscall
+  path = ckotdir'/lrhg.rex'
+  'open' path O_rdwr+O_creat+O_trunc 660
+  if retval = -1 then do
     say 'Unable to open the output file for ZGSTAT.EXEC'
     say 'so ISPF statistics will not be able to be recreated.'
     exit 8
-    end
- fd = retval
- do i = 1 to zg.0
-     rec = zg.i ESC_N
+  end
+  fd = retval
+  do i = 1 to zg.0
+    rec = zg.i ESC_N
     'write' fd 'rec' length(rec)
-    end
- 'close' fd
- Address TSO
+  end
+  'close' fd
+  Address TSO
 
- zgstat_dsn = "'"ckothlq".zgstat.exec'"
- cmd = 'cp -v  lrhg.rex "//'zgstat_dsn '"'
- cmd = cmd '&& rm lrhg.rex'
- x = bpxwunix(cmd,,so.,se.)
-    do i = 1 to so.0;say so.i;end
-    do i = 1 to se.0;say se.i;end
+  zgstat_dsn = "'"ckothlq".ZGSTAT.EXEC'"
+  cmd = 'cp -v  lrhg.rex "//'zgstat_dsn '"'
+  cmd = cmd '&& rm lrhg.rex'
+  x = bpxwunix(cmd,,so.,se.,env.)
+  if so.0 > 0 then
+  do i = 1 to so.0;say so.i;end
+  if se.0 > 0 then
+  do i = 1 to se.0;say se.i;end
 
-/* -------------------- *
- | Done with everything |
- * -------------------- */
+  /* -------------------- *
+  | Done with everything |
+  * -------------------- */
   say ' '
   say 'Completed - z/OS datasets created:'
   say ' '
@@ -291,11 +362,18 @@
   say 'To recreate the ISPF statistics execute the following command'
   say 'after returning to TSO/ISPF:'
   say ' '
-  say 'TSO EX' "'"zgstat_dsn"'" 'EX'
+  say 'TSO EX' zgstat_dsn 'EX'
   say ' '
   say 'After it completes successfully it can be deleted.'
 
   Exit
+
+zmsg:
+  parse arg message
+  if strip(message) = null then
+     message = copies('-',64)
+  say '* 'left(message,64)' *'
+  return
 
   /* ----------------------------------------------------- */
   /* number format code thanks to Doug Nadel               */
@@ -350,37 +428,27 @@ Alloc_Copy_PDS:
   rdir = strip(odir,'B',"'")
   rdir = strip(rdir,'T','/')
   'readdir' rdir 'mems.'
-
-  mcount = 0
   tcount = mems.0 - 2
-  do ii = 1 to mems.0
-    if mems.ii = "." | mems.ii = ".." then do
-      /* skip the . and .. things */
-      iterate
-    end
-    m = mems.ii    /* ignore the translation */
-    if zdsn.sub /= null then
-    if right(m,length(zdsn.sub)) = zdsn.sub then do
-      parse value m with m'.'.
-      m = translate(m)
-    end
-    src = rdir'/'mems.ii
-    bin = is_binfile(sub'/'mems.ii)
+
+  if opt /= null then
+  mixed = check_mixed_bintext(sub)
+  else mixed = 0
+
+  if mixed = 0 then do
+    bin = is_binfile(sub)
     if bin = 1 then binopt = '-B'
     else binopt = null
     if recfm = 'U' then binopt = '-X -I'
-    src = usssafe(mems.ii)
-    if left(src,1) = '#' then src = '\'src
-    zos = usssafe("//'"target"("m")'")
-    mcount = mcount + 1
     if binopt = null then type = 'Text'
     else if binopt = '-B' then  type = 'Binary'
     else if recfm = 'U' then type = 'Load module'
-    say left('Copying' mcount 'of' tcount,24) 'Member:' m 'as' type
-    cmd = 'cd' usssafe(rdir)
-    cmd = cmd '&& cp -U -v' binopt src '"'zos'"'
+    zos = usssafe("//'"target"'")
+    say 'Copying' tcount 'members as' type
+    cmd = 'cp -A -U -v' binopt usssafe(rdir'/*') '"'zos'"'
     x = docmd(cmd)
     if x > 0 then do
+      say ' '
+      say 'Copy command:' cmd
       say ' '
       say 'Standard messages:'
       say ' '
@@ -389,6 +457,47 @@ Alloc_Copy_PDS:
       say 'Error messages:'
       say ' '
       do vs = 1 to se.0;say se.vs;end
+    end
+  end
+  else do   /* mixed text and binary in same PDS */
+    mcount = 0
+    do ii = 1 to mems.0
+      if mems.ii = "." | mems.ii = ".." then do
+        /* skip the . and .. things */
+        iterate
+      end
+      m = mems.ii    /* ignore the translation */
+      if zdsn.sub /= null then
+      if right(m,length(zdsn.sub)) = zdsn.sub then do
+        parse value m with m'.'.
+        m = translate(m)
+      end
+      src = rdir'/'mems.ii
+      bin = is_binfile(sub'/'mems.ii)
+      if bin = 1 then binopt = '-B'
+      else binopt = null
+      if recfm = 'U' then binopt = '-X -I'
+      src = usssafe(mems.ii)
+      if left(src,1) = '#' then src = '\'src
+      zos = usssafe("//'"target"("m")'")
+      mcount = mcount + 1
+      if binopt = null then type = 'Text'
+      else if binopt = '-B' then  type = 'Binary'
+      else if recfm = 'U' then type = 'Load module'
+      say left('Copying' mcount 'of' tcount,24) 'Member:' m 'as' type
+      cmd = 'cd' usssafe(rdir)
+      cmd = cmd '&& cp -U -v' binopt src '"'zos'"'
+      x = docmd(cmd)
+      if x > 0 then do
+        say ' '
+        say 'Standard messages:'
+        say ' '
+        do vs = 1 to so.0;say so.vs;end
+        say ' '
+        say 'Error messages:'
+        say ' '
+        do vs = 1 to se.0;say se.vs;end
+      end
     end
   end
   return
@@ -412,6 +521,24 @@ Check_File: Procedure
   call outtrap 'off'
   if x.0 = 1 then return 8
   else return 0
+
+  /* ---------------------------------------- *
+  | Check if a PDS has mixed binary and text |
+  | 0 = not mixed   1 = mixed                |
+  * ---------------------------------------- */
+Check_Mixed_BinText:
+  parse arg checkForBinFile
+  cmbtRC = 0
+  if datatype(binfiles.0) /= 'NUM' then return 0
+  do bi = 1 to binfiles.0
+    parse value binfiles.bi with cmbtfile'/'cmbtmbr
+    parse value checkForBinFile with checkFile'/'checkmbr
+    if cmbtfile = checkFile then
+    if cmbtmbr = '*' then cmbtRC = 0
+    else return 1
+    if binfiles.bi = checkForBinFile then return 1
+  end
+  return cmbtRC
 
 usssafe: procedure
   parse arg dsn
@@ -479,7 +606,7 @@ is_binfile: procedure expose binfiles.
 docmd:
   parse arg cmd
   drop so. se.
-  x = bpxwunix(cmd,,so.,se.)
+  x = bpxwunix(cmd,,so.,se.,env.)
   return x
 
 >ZGSTAT     *** Inline ZGSTAT that will be updated and uploaded
@@ -709,7 +836,7 @@ zigistat: Procedure
     if rc > 0 then return x
     drop stats.
     cmd = 'cat' usssafe(filepath)
-    x = bpxwunix(cmd,,stats.,se.)
+    x = bpxwunix(cmd,,stats.,se.,env.)
     do i = 1 to stats.0
       stats.i = translate(stats.i,' ','0D'x)
     end
@@ -868,7 +995,7 @@ Check_Stats_File:
 docmd:
   parse arg cmd
   drop so. se.
-  x = bpxwunix(cmd,,so.,se.)
+  x = bpxwunix(cmd,,so.,se.,env.)
   return x
 
   /* ---------------------------------- *
